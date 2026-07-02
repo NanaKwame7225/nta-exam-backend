@@ -22,19 +22,31 @@ app.use(cors({
 app.use(express.json({ limit: '5mb' }));
 
 // ── MONGODB ───────────────────────────────────────────
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ MongoDB connected — NTA Exam DB'))
-  .catch(err => { console.error('❌ MongoDB error:', err.message); process.exit(1); });
+mongoose.connect(process.env.MONGODB_URI, {
+  serverSelectionTimeoutMS: 30000,
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 30000,
+})
+  .then(async () => {
+    console.log('✅ MongoDB connected — NTA Exam DB');
+    await seedDefaults();
+  })
+  .catch(err => {
+    console.error('❌ MongoDB connection failed:', err.message);
+    // Don't exit — let health endpoint show disconnected status
+  });
 
 // ── SEED DEFAULTS (run once on fresh DB) ──────────────
 async function seedDefaults() {
-  const s = await Settings.findById('singleton');
-  if (!s) await new Settings({ _id: 'singleton' }).save();
-
-  const t = await Trainer.findById('singleton');
-  if (!t) await new Trainer({ _id: 'singleton' }).save();
-
-  console.log('✅ Defaults seeded');
+  try {
+    const s = await Settings.findById('singleton');
+    if (!s) await new Settings({ _id: 'singleton' }).save();
+    const t = await Trainer.findById('singleton');
+    if (!t) await new Trainer({ _id: 'singleton' }).save();
+    console.log('✅ Defaults seeded');
+  } catch(e) {
+    console.error('⚠️ seedDefaults error:', e.message);
+  }
 }
 
 // ── HELPERS ───────────────────────────────────────────
@@ -385,7 +397,6 @@ app.get('/api/load', async (req, res) => {
 // ═══════════════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════════════
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`🚀 NTA Exam Backend running on port ${PORT}`);
-  await seedDefaults();
 });
