@@ -155,11 +155,23 @@ app.post('/api/students', async (req, res) => {
     if (!name || !course || !code) return res.status(400).json({ error: 'Name, course and code required' });
 
     // Auto-generate code if not provided or check uniqueness
-    const existing = await Student.findOne({ code: code.toUpperCase() });
-    if (existing) return res.status(409).json({ error: 'Student code already exists' });
+    let finalCode = code.toUpperCase();
+    // If code conflicts, auto-increment until unique
+    let existing = await Student.findOne({ code: finalCode });
+    if (existing) {
+      const yr = new Date().getFullYear();
+      const allStudents = await Student.find({ code: new RegExp('^NTA-' + yr + '-') }, 'code');
+      let maxNum = 0;
+      allStudents.forEach(s => {
+        const parts = s.code.split('-');
+        const num = parseInt(parts[2]) || 0;
+        if (num > maxNum) maxNum = num;
+      });
+      finalCode = `NTA-${yr}-${String(maxNum + 1).padStart(3, '0')}`;
+    }
 
     const student = await new Student({
-      code: code.toUpperCase(),
+      code: finalCode,
       name, phone: phone || '',
       course,
       courses: courses && courses.length ? courses : [course],
@@ -178,12 +190,28 @@ app.delete('/api/students/:code', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Get next student code
+// Get next student code — finds highest existing number to avoid conflicts
 app.get('/api/students/next-code', async (req, res) => {
   try {
-    const count = await Student.countDocuments();
-    const yr    = new Date().getFullYear();
-    const code  = `NTA-${yr}-${String(count + 1).padStart(3, '0')}`;
+    const yr = new Date().getFullYear();
+    // Find all codes for this year and get the highest number
+    const students = await Student.find({ code: new RegExp('^NTA-' + yr + '-') }, 'code');
+    let maxNum = 0;
+    students.forEach(s => {
+      const parts = s.code.split('-');
+      const num = parseInt(parts[2]) || 0;
+      if (num > maxNum) maxNum = num;
+    });
+    // Also check previous years to avoid any collision
+    const allStudents = await Student.find({}, 'code');
+    allStudents.forEach(s => {
+      const parts = s.code.split('-');
+      if (parts[1] === String(yr)) {
+        const num = parseInt(parts[2]) || 0;
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    const code = `NTA-${yr}-${String(maxNum + 1).padStart(3, '0')}`;
     res.json({ code });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
