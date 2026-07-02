@@ -78,6 +78,19 @@ function sendSMS(phone, message) {
   });
 }
 
+
+// ═══════════════════════════════════════════════════
+// SMS — send via backend (avoids browser CORS blocks)
+// ═══════════════════════════════════════════════════
+app.post('/api/sms', async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    if (!phone || !message) return res.status(400).json({ error: 'phone and message required' });
+    const ok = await sendSMS(phone, message);
+    res.json({ ok, to: normalizePhone(phone) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══════════════════════════════════════════════════
 // HEALTH CHECK
 // ═══════════════════════════════════════════════════
