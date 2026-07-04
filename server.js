@@ -66,7 +66,7 @@ function normalizePhone(p) {
 function sendSMS(phone, message) {
   const to     = normalizePhone(phone);
   const key    = process.env.MNOTIFY_KEY    || 's6mhqRtYmKUm4Pf3Go6garMmT';
-  const sender = process.env.MNOTIFY_SENDER || 'NkaySolutns';
+  const sender = 'NkaySolutns'; // hard-coded — approved Mnotify sender ID
 
   console.log('[SMS] Attempting to send...');
   console.log('[SMS] To:', to);
@@ -230,10 +230,11 @@ app.post('/api/students', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Delete student (soft delete)
+// Delete student (hard delete — fully removes)
 app.delete('/api/students/:code', async (req, res) => {
   try {
-    await Student.findOneAndUpdate({ code: req.params.code }, { active: false });
+    await Student.findOneAndDelete({ code: req.params.code });
+    console.log('[ADMIN] Student deleted:', req.params.code);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -457,6 +458,57 @@ app.post('/api/students/:code/payment', async (req, res) => {
     }
 
     res.json({ ok: true, student, balance, paidTotal });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ═══════════════════════════════════════════════════
+// ADMIN RESET OPERATIONS
+// ═══════════════════════════════════════════════════
+
+// Clear ALL payment records (zero every recorded amount)
+app.post('/api/admin/reset-payments', async (req, res) => {
+  try {
+    await Student.updateMany({}, { $set: { payments: [], totalFee: 0 } });
+    console.log('[ADMIN] All payments reset to zero');
+    res.json({ ok: true, message: 'All payment records cleared' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete ALL students (reset student ID counter to default)
+app.post('/api/admin/reset-students', async (req, res) => {
+  try {
+    const result = await Student.deleteMany({});
+    console.log('[ADMIN] All students deleted:', result.deletedCount);
+    res.json({ ok: true, deleted: result.deletedCount, message: 'All students deleted. ID counter reset to NTA-' + new Date().getFullYear() + '-001' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete ALL results
+app.post('/api/admin/reset-results', async (req, res) => {
+  try {
+    const result = await Result.deleteMany({});
+    console.log('[ADMIN] All results deleted:', result.deletedCount);
+    res.json({ ok: true, deleted: result.deletedCount });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// FULL factory reset — students, results, payments (keeps settings & trainer)
+app.post('/api/admin/factory-reset', async (req, res) => {
+  try {
+    await Student.deleteMany({});
+    await Result.deleteMany({});
+    console.log('[ADMIN] Factory reset complete');
+    res.json({ ok: true, message: 'System reset. Student IDs will start from NTA-' + new Date().getFullYear() + '-001' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Permanently delete a single student (hard delete, not soft)
+app.delete('/api/students/:code/permanent', async (req, res) => {
+  try {
+    await Student.findOneAndDelete({ code: req.params.code });
+    console.log('[ADMIN] Student permanently deleted:', req.params.code);
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
