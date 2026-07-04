@@ -66,7 +66,7 @@ function normalizePhone(p) {
 function sendSMS(phone, message) {
   const to     = normalizePhone(phone);
   const key    = process.env.MNOTIFY_KEY    || 's6mhqRtYmKUm4Pf3Go6garMmT';
-  const sender = process.env.MNOTIFY_SENDER || 'NkayAcad';
+  const sender = process.env.MNOTIFY_SENDER || 'NkaySolutns';
 
   console.log('[SMS] Attempting to send...');
   console.log('[SMS] To:', to);
