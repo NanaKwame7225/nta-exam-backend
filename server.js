@@ -79,15 +79,27 @@ function sendSMS(phone, message) {
     return Promise.resolve(false);
   }
 
-  const url = 'https://apps.mnotify.net/smsapi?key=' + encodeURIComponent(key)
-    + '&to=' + encodeURIComponent(to)
-    + '&msg=' + encodeURIComponent(message)
-    + '&sender_id=' + encodeURIComponent(sender);
+  // Mnotify current API v2 — key passed as query param, data as POST body
+  const postData = JSON.stringify({
+    recipient: [to],
+    sender: sender,
+    message: message
+  });
 
-  console.log('[SMS] URL:', url.replace(key, key.slice(0,6)+'...'));
+  const options = {
+    hostname: 'api.mnotify.com',
+    path: '/api/sms/quick?key=' + encodeURIComponent(key),
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(postData)
+    }
+  };
+
+  console.log('[SMS] Endpoint: api.mnotify.com/api/sms/quick');
 
   return new Promise(resolve => {
-    https.get(url, res => {
+    const req = https.request(options, res => {
       let data = '';
       console.log('[SMS] HTTP Status:', res.statusCode);
       res.on('data', d => data += d);
@@ -95,17 +107,22 @@ function sendSMS(phone, message) {
         console.log('[SMS] Mnotify response:', data);
         try {
           const parsed = JSON.parse(data);
-          console.log('[SMS] Status code:', parsed.status || parsed.code);
-          console.log('[SMS] Message:', parsed.message || parsed.msg || 'no message field');
+          const status = parsed.status || parsed.code;
+          console.log('[SMS] Status:', status);
+          console.log('[SMS] Message:', parsed.message || parsed.summary || 'no message');
+          resolve(status === 'success' || parsed.code === '2000');
         } catch(e) {
-          console.log('[SMS] Raw response (not JSON):', data);
+          console.log('[SMS] Raw response:', data);
+          resolve(false);
         }
-        resolve(true);
       });
-    }).on('error', err => {
+    });
+    req.on('error', err => {
       console.error('[SMS] Network error:', err.message);
       resolve(false);
     });
+    req.write(postData);
+    req.end();
   });
 }
 
