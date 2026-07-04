@@ -64,17 +64,48 @@ function normalizePhone(p) {
 }
 
 function sendSMS(phone, message) {
-  const to  = normalizePhone(phone);
-  if (!to) return Promise.resolve(false);
+  const to     = normalizePhone(phone);
   const key    = process.env.MNOTIFY_KEY    || 's6mhqRtYmKUm4Pf3Go6garMmT';
   const sender = process.env.MNOTIFY_SENDER || 'NkayAcad';
-  const url    = `https://apps.mnotify.net/smsapi?key=${encodeURIComponent(key)}&to=${encodeURIComponent(to)}&msg=${encodeURIComponent(message)}&sender_id=${encodeURIComponent(sender)}`;
+
+  console.log('[SMS] Attempting to send...');
+  console.log('[SMS] To:', to);
+  console.log('[SMS] Key:', key ? key.slice(0,6)+'...' : 'MISSING');
+  console.log('[SMS] Sender:', sender);
+  console.log('[SMS] Message:', message.slice(0,50));
+
+  if (!to) {
+    console.error('[SMS] ERROR: No valid phone number');
+    return Promise.resolve(false);
+  }
+
+  const url = 'https://apps.mnotify.net/smsapi?key=' + encodeURIComponent(key)
+    + '&to=' + encodeURIComponent(to)
+    + '&msg=' + encodeURIComponent(message)
+    + '&sender_id=' + encodeURIComponent(sender);
+
+  console.log('[SMS] URL:', url.replace(key, key.slice(0,6)+'...'));
+
   return new Promise(resolve => {
     https.get(url, res => {
       let data = '';
+      console.log('[SMS] HTTP Status:', res.statusCode);
       res.on('data', d => data += d);
-      res.on('end', () => { console.log(`[SMS] to ${to}: ${data}`); resolve(true); });
-    }).on('error', err => { console.error('[SMS] error:', err.message); resolve(false); });
+      res.on('end', () => {
+        console.log('[SMS] Mnotify response:', data);
+        try {
+          const parsed = JSON.parse(data);
+          console.log('[SMS] Status code:', parsed.status || parsed.code);
+          console.log('[SMS] Message:', parsed.message || parsed.msg || 'no message field');
+        } catch(e) {
+          console.log('[SMS] Raw response (not JSON):', data);
+        }
+        resolve(true);
+      });
+    }).on('error', err => {
+      console.error('[SMS] Network error:', err.message);
+      resolve(false);
+    });
   });
 }
 
